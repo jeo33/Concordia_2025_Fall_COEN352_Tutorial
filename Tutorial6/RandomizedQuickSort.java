@@ -3,37 +3,40 @@ import java.util.Random;
 public class RandomizedQuickSort {
     private static Random rand = new Random();
     
-    public static void quickSort(int[] arr, int left, int right) {
-        if (left < right) {
-            int pivotIndex = partition(arr, left, right);
-            
-            quickSort(arr, left, pivotIndex - 1);
-            quickSort(arr, pivotIndex + 1, right);
+    public static int randomizedPartition(int[] A, int p, int r) {
+        int i = p + rand.nextInt(r - p + 1);
+        
+        int temp = A[r];
+        A[r] = A[i];
+        A[i] = temp;
+        
+        return partition(A, p, r);
+    }
+    
+    public static void randomizedQuickSort(int[] A, int p, int r) {
+        if (p < r) {
+            int q = randomizedPartition(A, p, r);
+            randomizedQuickSort(A, p, q - 1);
+            randomizedQuickSort(A, q + 1, r);
         }
     }
-
-    public static int partition(int[] arr, int left, int right) {
-        int randomIndex = left + rand.nextInt(right - left + 1);
+    
+    public static int partition(int[] A, int p, int r) {
+        int pivot = A[r];
+        int i = p - 1;
         
-        int temp = arr[randomIndex];
-        arr[randomIndex] = arr[right];
-        arr[right] = temp;
-        
-        int pivot = arr[right];
-        int i = left - 1;
-        
-        for (int j = left; j < right; j++) {
-            if (arr[j] < pivot) {
+        for (int j = p; j < r; j++) {
+            if (A[j] <= pivot) {
                 i++;
-                temp = arr[i];
-                arr[i] = arr[j];
-                arr[j] = temp;
+                int temp = A[i];
+                A[i] = A[j];
+                A[j] = temp;
             }
         }
         
-        temp = arr[i + 1];
-        arr[i + 1] = arr[right];
-        arr[right] = temp;
+        int temp = A[i + 1];
+        A[i + 1] = A[r];
+        A[r] = temp;
         
         return i + 1;
     }
@@ -44,7 +47,7 @@ public class RandomizedQuickSort {
         System.out.println("Original array:");
         printArray(arr);
         
-        quickSort(arr, 0, arr.length - 1);
+        randomizedQuickSort(arr, 0, arr.length - 1);
         
         System.out.println("Sorted array:");
         printArray(arr);

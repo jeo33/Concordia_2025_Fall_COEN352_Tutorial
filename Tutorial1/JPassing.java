@@ -39,6 +39,6 @@ public class JPassing {
     	System.out.println("\nOriginal object hash code before reassign: " + System.identityHashCode(anotherObj));
     	System.out.println("Original object value before reassign: " + anotherObj.value);
     	reassignObject(anotherObj);
-    	System.out.println("After reassignObject: " + anotherObj.value);
+    	System.out.println("After reassignObject: " + anotherObj.value+" "+System.identityHashCode(anotherObj));
 	}
 }
