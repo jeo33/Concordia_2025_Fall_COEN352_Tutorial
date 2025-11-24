@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>DFS Animation (Big Variables)</title>
+    <style>
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; 
+            text-align: center; 
+            background-color: #fafafa; 
+            display: flex; 
+            flex-direction: column; 
+            align-items: center; 
+            margin: 0;
+            padding: 20px;
+        }
+        h1 { margin-bottom: 10px; color: #333; }
+        
+        /* Controls */
+        #controls { margin-bottom: 20px; }
+        button { 
+            padding: 12px 24px; 
+            font-size: 16px; 
+            font-weight: bold;
+            cursor: pointer; 
+            background: #2c3e50; 
+            color: white; 
+            border: none; 
+            border-radius: 6px; 
+            margin: 0 5px; 
+            transition: background 0.2s;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        button:hover { background: #34495e; transform: translateY(-1px); }
+        button:active { transform: translateY(0); }
+        button:disabled { background: #bdc3c7; cursor: not-allowed; transform: none; box-shadow: none; }
+        
+        /* Layout Grid */
+        .container { 
+            display: flex; 
+            flex-wrap: wrap; 
+            justify-content: center; 
+            gap: 30px; 
+            width: 100%; 
+            max-width: 1400px;
+        }
+        .panel { 
+            background: white; 
+            padding: 20px; 
+            border: 1px solid #e0e0e0; 
+            box-shadow: 0 4px 12px rgba(0,0,0,0.08); 
+            border-radius: 10px; 
+            text-align: left; 
+        }
+        
+        /* Graph Styles */
+        svg { background: white; border-radius: 4px; }
+        
+        .node-circle { stroke: #333; stroke-width: 3px; transition: fill 0.3s ease; }
+        
+        /* Main Node Label (A, B, C) */
+        .node-text { 
+            font-size: 24px; 
+            font-weight: 900; 
+            pointer-events: none; 
+            text-anchor: middle; 
+            dominant-baseline: middle; 
+            font-family: 'Segoe UI', sans-serif; 
+        }
+        
+        /* THE VARIABLES (d, f, pi) - MADE BIGGER HERE */
+        .node-sub { 
+            font-size: 18px; /* Increased from 14px */
+            font-weight: bold; 
+            font-family: 'Courier New', monospace; 
+            text-anchor: middle; 
+            fill: #d35400; /* Burnt orange for high contrast */
+        }
+        
+        .edge { stroke: #bdc3c7; stroke-width: 3px; fill: none; marker-end: url(#arrow); transition: stroke 0.3s; }
+        .edge.active { stroke: #e74c3c; stroke-width: 6px; marker-end: url(#arrow-active); }
+
+        /* Colors */
+        .fill-white { fill: #fff; }
+        .fill-gray { fill: #95a5a6; }
+        .fill-black { fill: #2c3e50; }
+        .text-white { fill: #fff; }
+        .text-black { fill: #2c3e50; }
+
+        /* Variable Table Styles */
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 16px; }
+        th, td { border: 1px solid #eee; padding: 10px 14px; text-align: center; }
+        th { background: #f8f9fa; color: #2c3e50; }
+        td { font-family: 'Courier New', monospace; font-weight: bold; }
+        
+        .status-line { 
+            font-weight: bold; 
+            color: #e74c3c; 
+            margin-bottom: 15px; 
+            font-size: 20px; 
+            min-height: 1.2em; 
+            border-bottom: 2px solid #eee;
+            padding-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>DFS Trace: Large Variables</h1>
+    
+    <div id="controls">
+        <button id="btnBack" onclick="step(-1)" disabled>Previous</button>
+        <button id="btnPlay" onclick="togglePlay()">Play / Pause</button>
+        <button id="btnNext" onclick="step(1)">Next Step</button>
+        <button onclick="reset()">Reset</button>
+    </div>
+
+    <div class="container">
+        
+        <div class="panel">
+            <div class="status-line" id="statusMsg">Initializing...</div>
+            <svg width="800" height="600" viewBox="0 0 800 600">
+                <defs>
+                    <marker id="arrow" markerWidth="12" markerHeight="12" refX="32" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L0,6 L9,3 z" fill="#bdc3c7" /></marker>
+                    <marker id="arrow-active" markerWidth="12" markerHeight="12" refX="32" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L0,6 L9,3 z" fill="#e74c3c" /></marker>
+                </defs>
+                <g id="edges"></g>
+                <g id="nodes"></g>
+            </svg>
+        </div>
+
+        <div class="panel" style="min-width: 320px;">
+            <h3>Global Counters</h3>
+            <table style="margin-bottom: 20px;">
+                <tr style="background:#ecf0f1;"><th>Variable</th><th>Value</th></tr>
+                <tr><td>time</td><td id="val-time" style="color:#e74c3c; font-size: 20px;">0</td></tr>
+                <tr><td>ctr1</td><td id="val-ctr1">0</td></tr>
+                <tr><td>ctr2</td><td id="val-ctr2">0</td></tr>
+                <tr><td>ctr3</td><td id="val-ctr3">0</td></tr>
+            </table>
+
+            <h3>Node Attributes</h3>
+            <table>
+                <thead><tr><th>u</th><th>color</th><th>d</th><th>f</th><th>&pi;</th></tr></thead>
+                <tbody id="node-table-body">
+                    </tbody>
+            </table>
+        </div>
+
+    </div>
+
+    <script>
+        // --- 1. Graph Data ---
+        const nodesList = ['A', 'B', 'C', 'D', 'E', 'F'];
+        
+        // Coordinates
+        const pos = {
+            'A': {x: 400, y: 70},
+            'B': {x: 200, y: 230},
+            'D': {x: 600, y: 230},
+            'F': {x: 200, y: 450},
+            'E': {x: 600, y: 450},
+            'C': {x: 400, y: 530}
+        };
+        
+        const adj = [
+            {from: 'A', to: 'B'}, {from: 'A', to: 'D'},
+            {from: 'B', to: 'D'}, {from: 'B', to: 'F'},
+            {from: 'C', to: 'E'},
+            {from: 'D', to: 'E'},
+            {from: 'E', to: 'A'}, {from: 'E', to: 'B'},
+            {from: 'F', to: 'C'}, {from: 'F', to: 'D'}, {from: 'F', to: 'E'}
+        ];
+
+        // --- 2. Logic ---
+        let timeline = [];
+        
+        function generateTimeline() {
+            let state = {
+                time: 0, ctr1: 0, ctr2: 0, ctr3: 0,
+                nodes: {}
+            };
+            nodesList.forEach(id => {
+                state.nodes[id] = { color: 'WHITE', d: null, f: null, pi: 'NIL' };
+            });
+
+            function record(msg, activeEdge = null) {
+                timeline.push({
+                    msg: msg,
+                    activeEdge: activeEdge,
+                    time: state.time,
+                    ctr1: state.ctr1,
+                    ctr2: state.ctr2,
+                    ctr3: state.ctr3,
+                    nodes: JSON.parse(JSON.stringify(state.nodes))
+                });
+            }
+
+            record("DFS(G) Start");
+
+            for (let i = 0; i < nodesList.length; i++) {
+                let u = nodesList[i];
+                if (state.nodes[u].color === 'WHITE') {
+                    record(`DFS Loop: ${u} is WHITE.`);
+                    dfsVisit(u, state, record);
+                } else {
+                    state.ctr1++;
+                    record(`DFS Loop: ${u} visited. ctr1++`);
+                }
+            }
+            record("DFS(G) Finished.");
+        }
+
+        function dfsVisit(u, state, record) {
+            state.time++;
+            state.nodes[u].d = state.time;
+            state.nodes[u].color = 'GRAY';
+            record(`DFS-VISIT(${u}): d=${state.time}`);
+
+            let neighbors = adj.filter(e => e.from === u).map(e => e.to);
+            
+            for (let v of neighbors) {
+                state.ctr2++;
+                record(`Edge (${u}, ${v}): ctr2++`, `${u}-${v}`);
+                
+                if (state.nodes[v].color === 'WHITE') {
+                    state.nodes[v].pi = u;
+                    record(`Recurse: ${v}.pi=${u}`, `${u}-${v}`);
+                    dfsVisit(v, state, record);
+                    record(`Back to ${u}`, `${u}-${v}`);
+                } else {
+                    state.ctr3++;
+                    record(`Skip ${v}: ctr3++`, `${u}-${v}`);
+                }
+            }
+
+            state.time++;
+            state.nodes[u].f = state.time;
+            state.nodes[u].color = 'BLACK';
+            record(`Finish ${u}: f=${state.time}`);
+        }
+
+        // --- 3. View ---
+        let currentStep = 0;
+        let isPlaying = false;
+        let playInterval;
+
+        function initView() {
+            const svgEdges = document.getElementById('edges');
+            const svgNodes = document.getElementById('nodes');
+            const tableBody = document.getElementById('node-table-body');
+
+            // Draw Edges
+            adj.forEach(e => {
+                const p1 = pos[e.from];
+                const p2 = pos[e.to];
+                const line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+                line.setAttribute("x1", p1.x); line.setAttribute("y1", p1.y);
+                line.setAttribute("x2", p2.x); line.setAttribute("y2", p2.y);
+                line.setAttribute("class", "edge");
+                line.setAttribute("id", `edge-${e.from}-${e.to}`);
+                svgEdges.appendChild(line);
+            });
+
+            // Draw Nodes
+            nodesList.forEach(id => {
+                const p = pos[id];
+                const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+                g.setAttribute("transform", `translate(${p.x}, ${p.y})`);
+                
+                // Circle
+                const circ = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+                circ.setAttribute("r", 32);
+                circ.setAttribute("class", "node-circle fill-white");
+                circ.setAttribute("id", `node-${id}`);
+
+                // Main Label (A, B...)
+                const txt = document.createElementNS("http://www.w3.org/2000/svg", "text");
+                txt.textContent = id;
+                txt.setAttribute("class", "node-text text-black");
+                txt.setAttribute("id", `text-${id}`);
+                
+                // Variable Label (d=1, f=10)
+                const sub = document.createElementNS("http://www.w3.org/2000/svg", "text");
+                sub.setAttribute("y", 65); // Pushed down further for size
+                sub.setAttribute("class", "node-sub");
+                sub.setAttribute("id", `sub-${id}`);
+
+                g.appendChild(circ);
+                g.appendChild(txt);
+                g.appendChild(sub);
+                svgNodes.appendChild(g);
+
+                // Table Row
+                const tr = document.createElement("tr");
+                tr.innerHTML = `
+                    <td style="font-size:18px;">${id}</td>
+                    <td id="tbl-color-${id}">WHITE</td>
+                    <td id="tbl-d-${id}"></td>
+                    <td id="tbl-f-${id}"></td>
+                    <td id="tbl-pi-${id}">NIL</td>
+                `;
+                tableBody.appendChild(tr);
+            });
+        }
+
+        function updateView() {
+            const frame = timeline[currentStep];
+            
+            document.getElementById('statusMsg').textContent = `${currentStep}: ${frame.msg}`;
+            
+            document.getElementById('val-time').textContent = frame.time;
+            document.getElementById('val-ctr1').textContent = frame.ctr1;
+            document.getElementById('val-ctr2').textContent = frame.ctr2;
+            document.getElementById('val-ctr3').textContent = frame.ctr3;
+
+            // Edges
+            document.querySelectorAll('.edge').forEach(e => e.setAttribute('class', 'edge'));
+            if(frame.activeEdge) {
+                const e = document.getElementById(`edge-${frame.activeEdge}`);
+                if(e) e.setAttribute('class', 'edge active');
+            }
+
+            // Nodes
+            nodesList.forEach(id => {
+                const nState = frame.nodes[id];
+                const circle = document.getElementById(`node-${id}`);
+                const text = document.getElementById(`text-${id}`);
+                const sub = document.getElementById(`sub-${id}`);
+
+                if (nState.color === 'WHITE') {
+                    circle.setAttribute('class', 'node-circle fill-white');
+                    text.setAttribute('class', 'node-text text-black');
+                } else if (nState.color === 'GRAY') {
+                    circle.setAttribute('class', 'node-circle fill-gray');
+                    text.setAttribute('class', 'node-text text-white');
+                } else {
+                    circle.setAttribute('class', 'node-circle fill-black');
+                    text.setAttribute('class', 'node-text text-white');
+                }
+
+                // Render Subtext
+                let subTxt = "";
+                if (nState.d) subTxt += `d:${nState.d}`;
+                if (nState.f) subTxt += ` f:${nState.f}`;
+                sub.textContent = subTxt;
+
+                // Table
+                document.getElementById(`tbl-color-${id}`).textContent = nState.color;
+                document.getElementById(`tbl-d-${id}`).textContent = nState.d || "-";
+                document.getElementById(`tbl-f-${id}`).textContent = nState.f || "-";
+                document.getElementById(`tbl-pi-${id}`).textContent = nState.pi;
+            });
+
+            document.getElementById('btnBack').disabled = currentStep <= 0;
+            document.getElementById('btnNext').disabled = currentStep >= timeline.length - 1;
+        }
+
+        function step(dir) {
+            currentStep += dir;
+            if (currentStep < 0) currentStep = 0;
+            if (currentStep >= timeline.length) {
+                currentStep = timeline.length - 1;
+                isPlaying = false;
+                clearInterval(playInterval);
+            }
+            updateView();
+        }
+
+        function togglePlay() {
+            if (isPlaying) {
+                isPlaying = false;
+                clearInterval(playInterval);
+            } else {
+                if (currentStep >= timeline.length - 1) currentStep = 0;
+                isPlaying = true;
+                playInterval = setInterval(() => step(1), 800);
+            }
+        }
+
+        function reset() {
+            isPlaying = false;
+            clearInterval(playInterval);
+            currentStep = 0;
+            updateView();
+        }
+
+        generateTimeline();
+        initView();
+        updateView();
+    </script>
+</body>
+</html>

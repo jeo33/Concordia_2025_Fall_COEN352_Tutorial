@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>BFS Trace (Large Graph)</title>
+    <style>
+        body { 
+            font-family: 'Courier New', Courier, monospace; 
+            text-align: center; 
+            background: #fafafa; 
+            padding: 20px; 
+            margin: 0;
+        }
+        
+        /* Layout */
+        .container { 
+            display: flex; 
+            flex-wrap: wrap; 
+            justify-content: center; 
+            gap: 20px; 
+            width: 100%; 
+        }
+        
+        .panel { 
+            background: white; 
+            padding: 20px; 
+            border: 1px solid #ccc; 
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1); 
+            border-radius: 8px; 
+            text-align: left; 
+        }
+        
+        /* Controls */
+        #controls { margin-bottom: 20px; }
+        button { 
+            padding: 12px 24px; 
+            font-size: 18px; 
+            font-weight: bold;
+            cursor: pointer; 
+            background: #333; 
+            color: white; 
+            border: none; 
+            margin: 0 8px; 
+            border-radius: 6px; 
+            transition: background 0.2s;
+        }
+        button:hover { background: #555; }
+        button:disabled { background: #ccc; cursor: not-allowed; }
+        
+        /* Graph */
+        svg { background: white; border: 2px solid #eee; display: block; }
+        
+        .node-circle { stroke: #333; stroke-width: 4px; transition: fill 0.3s; }
+        
+        .node-text { 
+            font-size: 32px; /* Bigger Font */
+            font-weight: 900; 
+            font-family: sans-serif; 
+            pointer-events: none; 
+            text-anchor: middle; 
+            dominant-baseline: middle; 
+        }
+        
+        .node-sub { 
+            font-size: 20px; /* Bigger Subtext */
+            font-weight: bold; 
+            fill: #d35400; 
+            text-anchor: middle; 
+            font-family: monospace;
+        }
+        
+        .edge { stroke: #ccc; stroke-width: 4px; fill: none; marker-end: url(#arrow); transition: stroke 0.3s; }
+        .edge.active { stroke: #e74c3c; stroke-width: 8px; marker-end: url(#arrow-active); }
+
+        /* Colors */
+        .fill-white { fill: #fff; }
+        .fill-gray { fill: #bdc3c7; }
+        .fill-black { fill: #2c3e50; }
+        .fill-green { fill: #27ae60; } /* Processing */
+        .text-white { fill: #fff; }
+        .text-black { fill: #000; }
+
+        /* Tables */
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 16px; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: center; }
+        th { background: #f0f0f0; }
+        td { font-weight: bold; }
+        
+        .queue-box { 
+            padding: 15px; 
+            background: #eee; 
+            border: 1px solid #ccc; 
+            margin-bottom: 15px; 
+            font-weight: bold; 
+            min-height: 30px; 
+            font-size: 20px;
+        }
+        
+        .status { 
+            color: #e74c3c; 
+            font-weight: bold; 
+            margin-bottom: 10px; 
+            font-size: 22px;
+            min-height: 1.2em; 
+        }
+    </style>
+</head>
+<body>
+
+    <h1>BFS Trace (Large Window)</h1>
+
+    <div id="controls">
+        <button onclick="step(-1)">Previous</button>
+        <button onclick="togglePlay()" id="btnPlay">Play</button>
+        <button onclick="step(1)">Next</button>
+        <button onclick="reset()">Reset</button>
+    </div>
+
+    <div class="container">
+        <div class="panel">
+            <div class="status" id="statusMsg">Ready</div>
+            <svg width="900" height="700" viewBox="0 0 900 700">
+                <defs>
+                    <marker id="arrow" markerWidth="12" markerHeight="12" refX="38" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L0,6 L9,3 z" fill="#ccc" /></marker>
+                    <marker id="arrow-active" markerWidth="12" markerHeight="12" refX="38" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L0,6 L9,3 z" fill="#e74c3c" /></marker>
+                </defs>
+                <g id="edges"></g>
+                <g id="nodes"></g>
+            </svg>
+        </div>
+
+        <div class="panel" style="min-width: 350px;">
+            <h3>Counters</h3>
+            <table>
+                <tr><th>Var</th><th>Val</th><th>Meaning</th></tr>
+                <tr><td>time</td><td id="val-time">0</td><td>Global Step</td></tr>
+                <tr><td>ctr0</td><td id="val-ctr0">0</td><td>Outer Skip</td></tr>
+                <tr><td>ctr1</td><td id="val-ctr1">0</td><td>Edge Check</td></tr>
+                <tr><td>ctr2</td><td id="val-ctr2">0</td><td>Seen Check</td></tr>
+            </table>
+
+            <h3>Queue</h3>
+            <div id="queue-display" class="queue-box">[]</div>
+
+            <h3>Node State</h3>
+            <table>
+                <thead><tr><th>u</th><th>color</th><th>d</th><th>f</th><th>&pi;</th></tr></thead>
+                <tbody id="node-table"></tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        // --- 1. GRAPH DATA (SCALED FOR 900x700) ---
+        const nodes = ['A', 'B', 'C', 'D', 'E', 'F'];
+        
+        // Spreading nodes out to fill the large window
+        const pos = {
+            'A': {x: 450, y: 80},   // Top Center
+            'B': {x: 200, y: 280},  // Top Left
+            'D': {x: 700, y: 280},  // Top Right
+            'F': {x: 200, y: 550},  // Bottom Left
+            'E': {x: 700, y: 550},  // Bottom Right
+            'C': {x: 450, y: 620}   // Bottom Center
+        };
+        
+        const adj = [
+            {from: 'A', to: 'B'}, {from: 'A', to: 'D'},
+            {from: 'B', to: 'D'}, {from: 'B', to: 'F'},
+            {from: 'C', to: 'E'},
+            {from: 'D', to: 'E'},
+            {from: 'E', to: 'A'}, {from: 'E', to: 'B'},
+            {from: 'F', to: 'C'}, {from: 'F', to: 'D'}, {from: 'F', to: 'E'}
+        ];
+
+        // --- 2. ALGORITHM LOGIC ---
+        let timeline = [];
+
+        function runBFS() {
+            // Initial State
+            let state = {
+                time: 0, ctr0: 0, ctr1: 0, ctr2: 0,
+                queue: [],
+                nodes: {}
+            };
+            nodes.forEach(u => {
+                state.nodes[u] = { color: 'WHITE', d: Infinity, f: null, pi: 'NIL' };
+            });
+
+            function snap(msg, activeEdge=null, activeNode=null) {
+                timeline.push({
+                    msg: msg,
+                    edge: activeEdge,
+                    activeNode: activeNode,
+                    state: JSON.parse(JSON.stringify(state))
+                });
+            }
+
+            snap("Init: All WHITE, d=inf");
+
+            // OUTER LOOP (Matches DFS exam structure)
+            for(let i=0; i<nodes.length; i++) {
+                let startNode = nodes[i];
+                
+                if(state.nodes[startNode].color === 'WHITE') {
+                    snap(`Outer Loop: ${startNode} is WHITE. Start BFS.`);
+                    
+                    // BFS INIT
+                    state.nodes[startNode].color = 'GRAY';
+                    state.nodes[startNode].d = 0; 
+                    state.nodes[startNode].pi = 'NIL';
+                    state.queue.push(startNode);
+                    
+                    snap(`Enqueue ${startNode} (d=0)`, null, startNode);
+
+                    while(state.queue.length > 0) {
+                        let u = state.queue.shift();
+                        state.time++;
+                        snap(`Dequeue ${u}. Processing...`, null, u);
+
+                        let neighbors = adj.filter(e => e.from === u).map(e => e.to).sort();
+
+                        for(let v of neighbors) {
+                            state.ctr1++; // Edge Check
+                            snap(`Check Edge (${u}, ${v}). ctr1++`, `${u}-${v}`, u);
+
+                            if(state.nodes[v].color === 'WHITE') {
+                                state.nodes[v].color = 'GRAY';
+                                state.nodes[v].d = state.nodes[u].d + 1;
+                                state.nodes[v].pi = u;
+                                state.queue.push(v);
+                                snap(`${v} WHITE -> Enqueue (d=${state.nodes[v].d})`, `${u}-${v}`, u);
+                            } else {
+                                state.ctr2++; // Visited Check
+                                snap(`${v} !WHITE -> Skip. ctr2++`, `${u}-${v}`, u);
+                            }
+                        }
+
+                        state.nodes[u].color = 'BLACK';
+                        state.nodes[u].f = state.time; // Finish Time
+                        snap(`${u} Done -> BLACK (f=${state.time})`, null, u);
+                    }
+                } else {
+                    state.ctr0++; // Outer Skip
+                    snap(`Outer Loop: ${startNode} !WHITE -> Skip. ctr0++`);
+                }
+            }
+            snap("BFS Complete");
+        }
+
+        // --- 3. VISUALIZATION ---
+        let stepIdx = 0;
+        let timer = null;
+
+        function draw() {
+            const svgEdges = document.getElementById('edges');
+            const svgNodes = document.getElementById('nodes');
+            const tbl = document.getElementById('node-table');
+
+            svgEdges.innerHTML = '';
+            svgNodes.innerHTML = '';
+            tbl.innerHTML = '';
+
+            // Draw Edges
+            adj.forEach(e => {
+                let line = document.createElementNS("http://www.w3.org/2000/svg", "line");
+                let p1 = pos[e.from], p2 = pos[e.to];
+                line.setAttribute('x1', p1.x); line.setAttribute('y1', p1.y);
+                line.setAttribute('x2', p2.x); line.setAttribute('y2', p2.y);
+                line.setAttribute('class', 'edge');
+                line.setAttribute('id', `e-${e.from}-${e.to}`);
+                svgEdges.appendChild(line);
+            });
+
+            // Draw Nodes (Bigger Radius for Visibility)
+            nodes.forEach(u => {
+                let g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+                let p = pos[u];
+                g.setAttribute('transform', `translate(${p.x},${p.y})`);
+                
+                g.innerHTML = `
+                    <circle r="40" class="node-circle fill-white" id="c-${u}"></circle>
+                    <text class="node-text text-black" id="t-${u}">${u}</text>
+                    <text y="70" class="node-sub" id="s-${u}"></text>
+                `;
+                svgNodes.appendChild(g);
+
+                // Table Row
+                let tr = document.createElement('tr');
+                tr.innerHTML = `<td style="font-size:18px">${u}</td><td id="td-c-${u}"></td><td id="td-d-${u}"></td><td id="td-f-${u}"></td><td id="td-pi-${u}"></td>`;
+                tbl.appendChild(tr);
+            });
+        }
+
+        function update() {
+            let frame = timeline[stepIdx];
+            let s = frame.state;
+
+            // Globals
+            document.getElementById('statusMsg').textContent = `Step ${stepIdx}: ${frame.msg}`;
+            document.getElementById('val-time').textContent = s.time;
+            document.getElementById('val-ctr0').textContent = s.ctr0;
+            document.getElementById('val-ctr1').textContent = s.ctr1;
+            document.getElementById('val-ctr2').textContent = s.ctr2;
+            document.getElementById('queue-display').textContent = JSON.stringify(s.queue);
+
+            // Edges
+            document.querySelectorAll('.edge').forEach(e => e.setAttribute('class', 'edge'));
+            if(frame.edge) document.getElementById(`e-${frame.edge}`).setAttribute('class', 'edge active');
+
+            // Nodes
+            nodes.forEach(u => {
+                let n = s.nodes[u];
+                let circ = document.getElementById(`c-${u}`);
+                let txt = document.getElementById(`t-${u}`);
+                let sub = document.getElementById(`s-${u}`);
+
+                // Color Logic
+                let cls = 'fill-white';
+                let txtCls = 'text-black';
+                
+                if(u === frame.activeNode && n.color !== 'BLACK') { 
+                    cls = 'fill-green'; txtCls = 'text-white'; 
+                } else if(n.color === 'GRAY') { 
+                    cls = 'fill-gray'; txtCls = 'text-white'; 
+                } else if(n.color === 'BLACK') { 
+                    cls = 'fill-black'; txtCls = 'text-white'; 
+                }
+                
+                circ.setAttribute('class', `node-circle ${cls}`);
+                txt.setAttribute('class', `node-text ${txtCls}`);
+
+                // Subtext
+                let dStr = (n.d === Infinity || n.d === null) ? '∞' : n.d;
+                let fStr = (n.f === null) ? '-' : n.f;
+                sub.textContent = `d:${dStr} f:${fStr} π:${n.pi}`;
+
+                // Table
+                document.getElementById(`td-c-${u}`).textContent = n.color;
+                document.getElementById(`td-d-${u}`).textContent = dStr;
+                document.getElementById(`td-f-${u}`).textContent = fStr;
+                document.getElementById(`td-pi-${u}`).textContent = n.pi;
+            });
+        }
+
+        // Controls
+        function step(d) {
+            stepIdx += d;
+            if(stepIdx < 0) stepIdx = 0;
+            if(stepIdx >= timeline.length) { stepIdx = timeline.length-1; clearInterval(timer); }
+            update();
+        }
+
+        function togglePlay() {
+            if(timer) { clearInterval(timer); timer = null; }
+            else { timer = setInterval(() => step(1), 800); }
+        }
+
+        function reset() {
+            clearInterval(timer); timer = null;
+            stepIdx = 0;
+            update();
+        }
+
+        // Init
+        draw();
+        runBFS();
+        update();
+
+    </script>
+</body>
+</html>
